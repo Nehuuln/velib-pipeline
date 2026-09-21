@@ -49,6 +49,29 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # Applique les scripts sql/schema/*.sql sur la base velib, puis s'arrête
+  db-migrate:
+    image: postgres:17
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${VELIB_DB_NAME}
+      PGUSER: ${VELIB_DB_USER}
+      PGPASSWORD: ${VELIB_DB_PASSWORD}
+    volumes:
+      - ./sql/schema:/sql/schema:ro
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        set -e
+        for f in /sql/schema/*.sql; do
+          echo "-> $$f"
+          psql -v ON_ERROR_STOP=1 -q -f "$$f"
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   airflow-init:
     <<: *airflow-common
     command: version
@@ -89,6 +112,8 @@ services:
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
+        condition: service_completed_successfully
+      db-migrate:
         condition: service_completed_successfully
 
   airflow-dag-processor:
