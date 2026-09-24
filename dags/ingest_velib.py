@@ -15,7 +15,7 @@ from airflow.exceptions import AirflowSkipException
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.sdk import dag, task
 
-from src.clients.velib import VelibClient
+from src.clients.velib import VelibClient, stations_of
 from src.loaders.postgres import insert_snapshot, transform_station_status
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def ingest_velib():
         snapshot = VelibClient().fetch_station_status()
         logger.info(
             "Snapshot récupéré : %s stations, source_updated_at=%s",
-            len(snapshot.stations), snapshot.source_updated_at,
+            len(stations_of(snapshot)), snapshot.source_updated_at,
         )
 
         conn = PostgresHook(postgres_conn_id=POSTGRES_CONN_ID).get_conn()

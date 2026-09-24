@@ -8,7 +8,12 @@ import pytest
 import requests
 import responses
 
-from src.clients.velib import GBFS_DISCOVERY_URL, VelibApiError, VelibClient
+from src.clients.velib import (
+    GBFS_DISCOVERY_URL,
+    VelibApiError,
+    VelibClient,
+    stations_of,
+)
 
 STATUS_URL = "https://example.test/station_status.json"
 INFO_URL = "https://example.test/station_information.json"
@@ -71,7 +76,7 @@ def test_fetch_station_status_ok(client):
     snapshot = client.fetch_station_status()
 
     assert snapshot.source == "velib_station_status"
-    assert len(snapshot.stations) == 1
+    assert len(stations_of(snapshot)) == 1
     assert snapshot.payload == STATUS_BODY
     assert snapshot.fetched_at.tzinfo is UTC
     assert snapshot.source_updated_at.tzinfo is UTC
@@ -100,7 +105,7 @@ def test_retry_puis_succes_avec_backoff_exponentiel(client):
 
     snapshot = client.fetch_station_status()
 
-    assert len(snapshot.stations) == 1
+    assert len(stations_of(snapshot)) == 1
     assert client.delays == [1.0, 2.0]
 
 
@@ -122,7 +127,7 @@ def test_timeout_est_retente(client):
     responses.add(responses.GET, STATUS_URL, body=requests.Timeout("trop lent"))
     responses.add(responses.GET, STATUS_URL, json=STATUS_BODY, status=200)
 
-    assert client.fetch_station_status().stations
+    assert stations_of(client.fetch_station_status())
     assert client.delays == [1.0]
 
 
@@ -160,7 +165,7 @@ def test_json_invalide_est_retente(client):
     responses.add(responses.GET, STATUS_URL, body="<html>maintenance</html>", status=200)
     responses.add(responses.GET, STATUS_URL, json=STATUS_BODY, status=200)
 
-    assert client.fetch_station_status().stations
+    assert stations_of(client.fetch_station_status())
     assert client.delays == [1.0]
 
 
