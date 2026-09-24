@@ -11,7 +11,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from src.clients.velib import ApiSnapshot
+from src.clients.http import ApiSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -68,3 +68,20 @@ def transform_station_status(conn: Any, snapshot_id: int) -> int:
 
     logger.info("staging.station_status : %s ligne(s) insérée(s)", inserted)
     return inserted
+
+
+def transform_weather_hourly(conn: Any, snapshot_id: int) -> int:
+    """raw -> staging.weather_hourly. Renvoie le nombre de lignes écrites.
+
+    Une heure déjà connue n'est mise à jour que si l'appel est plus récent
+    (une prévision devient une observation).
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            read_sql("transform/staging_weather_hourly.sql"),
+            {"snapshot_id": snapshot_id},
+        )
+        written = cur.rowcount
+
+    logger.info("staging.weather_hourly : %s ligne(s) écrite(s)", written)
+    return written

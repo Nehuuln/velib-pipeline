@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
-from src.clients.velib import ApiSnapshot
+from src.clients.http import ApiSnapshot
 from src.loaders.postgres import (
     insert_snapshot,
     read_sql,
