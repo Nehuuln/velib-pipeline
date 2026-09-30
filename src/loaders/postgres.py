@@ -138,3 +138,40 @@ def refresh_materialized_view(conn: Any, view: str, concurrently: bool = True) -
         cur.execute(f"REFRESH MATERIALIZED VIEW {option}{view}")
 
     logger.info("Vue %s rafraîchie (concurrently=%s)", view, concurrently)
+
+
+INSERT_METRIC = """
+INSERT INTO marts.pipeline_metrics (dag_id, task_id, run_id, rows_written, duration_ms)
+VALUES (%(dag_id)s, %(task_id)s, %(run_id)s, %(rows_written)s, %(duration_ms)s)
+"""
+
+
+def record_metric(
+    conn: Any,
+    dag_id: str,
+    task_id: str,
+    run_id: str | None = None,
+    rows_written: int | None = None,
+    duration_ms: int | None = None,
+) -> None:
+    """Enregistre les métriques d'exécution d'une tâche.
+
+    Airflow connaît déjà les durées, mais pas le nombre de lignes écrites,
+    et ses métadonnées sont purgées. On garde donc l'historique côté marts,
+    pour le dashboard de santé du pipeline.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            INSERT_METRIC,
+            {
+                "dag_id": dag_id,
+                "task_id": task_id,
+                "run_id": run_id,
+                "rows_written": rows_written,
+                "duration_ms": duration_ms,
+            },
+        )
+
+    logger.info(
+        "Métrique %s.%s : %s ligne(s) en %s ms", dag_id, task_id, rows_written, duration_ms
+    )
