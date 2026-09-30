@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS core.dim_station (
     lon          numeric(9, 6),
     capacity     integer,
     valid_from   timestamptz NOT NULL,
-    valid_to     timestamptz,          
+    valid_to     timestamptz,
     is_current   boolean     NOT NULL DEFAULT true,
     snapshot_id  bigint      NOT NULL,
     loaded_at    timestamptz NOT NULL DEFAULT now(),

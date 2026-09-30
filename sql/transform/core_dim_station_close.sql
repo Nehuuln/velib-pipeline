@@ -16,7 +16,7 @@ UPDATE core.dim_station AS d
    SET valid_to   = (SELECT min(fetched_at) FROM incoming),
        is_current = false
  WHERE d.is_current
-   AND EXISTS (SELECT 1 FROM incoming) 
+   AND EXISTS (SELECT 1 FROM incoming)  
    AND (
         EXISTS (
             SELECT 1 FROM incoming AS i

@@ -16,6 +16,7 @@ from src.clients.http import ApiSnapshot
 logger = logging.getLogger(__name__)
 
 SQL_DIR = Path(__file__).resolve().parents[2] / "sql"
+REFRESHABLE_VIEWS = frozenset({"marts.station_hourly_usage"})
 
 INSERT_SNAPSHOT = """
 INSERT INTO raw.api_snapshots (source, fetched_at, source_updated_at, payload)
@@ -104,7 +105,36 @@ def transform_dim_station(conn: Any, snapshot_id: int) -> int:
         cur.execute(read_sql("transform/core_dim_station_insert.sql"), params)
         opened = cur.rowcount
 
-    logger.info(
-        "core.dim_station : %s version(s) fermée(s), %s ouverte(s)", closed, opened
-    )
+    logger.info("core.dim_station : %s version(s) fermée(s), %s ouverte(s)", closed, opened)
     return opened
+
+
+def transform_fact_station_status(conn: Any) -> int:
+    """staging -> core.fact_station_status, en incrémental.
+
+    Pas de paramètre : le SQL repart du fait le plus récent, moins une heure
+    de marge. Idempotent grâce à ON CONFLICT DO NOTHING.
+    """
+    with conn.cursor() as cur:
+        cur.execute(read_sql("transform/core_fact_station_status.sql"))
+        inserted = cur.rowcount
+
+    logger.info("core.fact_station_status : %s ligne(s) insérée(s)", inserted)
+    return inserted
+
+
+def refresh_materialized_view(conn: Any, view: str, concurrently: bool = True) -> None:
+    """Rafraîchit une vue matérialisée des marts.
+
+    CONCURRENTLY ne bloque pas les lectures (dashboards Grafana), mais exige
+    un index unique et une vue déjà peuplée : au premier rafraîchissement, il
+    faut donc passer concurrently=False.
+    """
+    if view not in REFRESHABLE_VIEWS:
+        raise ValueError(f"Vue inconnue : {view}")
+
+    option = "CONCURRENTLY " if concurrently else ""
+    with conn.cursor() as cur:
+        cur.execute(f"REFRESH MATERIALIZED VIEW {option}{view}")
+
+    logger.info("Vue %s rafraîchie (concurrently=%s)", view, concurrently)
