@@ -9,6 +9,7 @@ from src.clients.http import ApiSnapshot
 from src.loaders.postgres import (
     insert_snapshot,
     read_sql,
+    transform_dim_station,
     transform_station_status,
 )
 
@@ -84,3 +85,31 @@ def test_le_fichier_sql_de_transformation_est_lisible():
 
     assert "ON CONFLICT (station_id, last_reported) DO NOTHING" in sql
     assert "%(snapshot_id)s" in sql
+
+
+def test_transform_dim_station_execute_les_deux_etapes_dans_le_bon_ordre():
+    """Fermer avant d'ouvrir : sinon une station perd sa version courante."""
+    cur = FakeCursor(rowcount=3)
+
+    assert transform_dim_station(FakeConnection(cur), 42) == 3
+
+    assert len(cur.executed) == 2
+    close_sql, close_params = cur.executed[0]
+    insert_sql, insert_params = cur.executed[1]
+    assert close_sql.lstrip().startswith("--") and "UPDATE core.dim_station" in close_sql
+    assert "INSERT INTO core.dim_station" in insert_sql
+    assert close_params == insert_params == {"snapshot_id": 42}
+
+
+def test_le_sql_du_scd2_arrondit_les_coordonnees():
+    """Sans arrondi, les 14 décimales de l'API créent une version par run."""
+    for name in ("core_dim_station_close.sql", "core_dim_station_insert.sql"):
+        sql = read_sql(f"transform/{name}")
+        assert "::numeric(9, 6)" in sql
+
+
+def test_le_sql_de_fermeture_refuse_un_flux_vide():
+    """Garde-fou : un flux vide ne doit pas retirer toutes les stations."""
+    sql = read_sql("transform/core_dim_station_close.sql")
+
+    assert "EXISTS (SELECT 1 FROM incoming)" in sql
