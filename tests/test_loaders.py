@@ -11,6 +11,7 @@ from src.clients.http import ApiSnapshot
 from src.loaders.postgres import (
     insert_snapshot,
     read_sql,
+    record_metric,
     refresh_materialized_view,
     transform_dim_station,
     transform_fact_station_status,
@@ -154,3 +155,21 @@ def test_refresh_materialized_view_refuse_une_vue_inconnue():
         refresh_materialized_view(FakeConnection(cur), "marts.station_hourly_usage; DROP TABLE")
 
     assert cur.executed == []
+
+
+def test_record_metric():
+    cur = FakeCursor()
+
+    record_metric(
+        FakeConnection(cur),
+        dag_id="transform_core_marts",
+        task_id="load_fact_station_status",
+        run_id="manual__2026-09-30",
+        rows_written=1519,
+        duration_ms=842,
+    )
+
+    sql, params = cur.executed[0]
+    assert "marts.pipeline_metrics" in sql
+    assert params["rows_written"] == 1519
+    assert params["duration_ms"] == 842
