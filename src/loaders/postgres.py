@@ -85,3 +85,26 @@ def transform_weather_hourly(conn: Any, snapshot_id: int) -> int:
 
     logger.info("staging.weather_hourly : %s ligne(s) écrite(s)", written)
     return written
+
+
+def transform_dim_station(conn: Any, snapshot_id: int) -> int:
+    """raw -> core.dim_station (SCD type 2), en deux étapes.
+
+    D'abord fermer les versions obsolètes, ensuite ouvrir les nouvelles.
+    L'ordre compte, et les deux doivent partager la même transaction, sinon
+    une station peut se retrouver sans version courante.
+
+    Renvoie le nombre de nouvelles versions créées : 0 signifie qu'aucune
+    station n'a changé depuis le snapshot précédent.
+    """
+    params = {"snapshot_id": snapshot_id}
+    with conn.cursor() as cur:
+        cur.execute(read_sql("transform/core_dim_station_close.sql"), params)
+        closed = cur.rowcount
+        cur.execute(read_sql("transform/core_dim_station_insert.sql"), params)
+        opened = cur.rowcount
+
+    logger.info(
+        "core.dim_station : %s version(s) fermée(s), %s ouverte(s)", closed, opened
+    )
+    return opened
